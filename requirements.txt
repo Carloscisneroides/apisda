@@ -2,4 +2,6 @@ flask==3.1.0
 flask-cors==5.0.0
 flask-limiter==3.9.0
 requests==2.32.3
+requests[socks]==2.32.3
+stem==1.8.2
 gunicorn==23.0.0

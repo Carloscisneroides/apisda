@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 
 import requests
+from stem import Signal
+from stem.control import Controller
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -40,9 +42,25 @@ limiter = Limiter(
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 POSTE_URL = "https://www.poste.it/online/dovequando/DQ-REST/ricercasemplice"
-TIMEOUT   = 10          # segundos
+TIMEOUT   = 20          # segundos (Tor es más lento)
 MAX_RETRY = 3
-BACKOFF   = [1, 2, 4]   # segundos entre reintentos
+BACKOFF   = [2, 4, 8]   # segundos entre reintentos
+
+TOR_PROXIES = {
+    "http":  "socks5h://127.0.0.1:9050",
+    "https": "socks5h://127.0.0.1:9050",
+}
+
+def renew_tor_circuit():
+    """Pide a Tor una nueva IP de salida."""
+    try:
+        with Controller.from_port(port=9051) as c:
+            c.authenticate()
+            c.signal(Signal.NEWNYM)
+        time.sleep(2)
+        log.info({"action": "tor_renewed"})
+    except Exception as e:
+        log.warning({"action": "tor_renew_failed", "err": str(e)})
 
 POSTE_HEADERS = {
     "User-Agent":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -82,10 +100,19 @@ def fetch_poste(codice: str) -> dict:
                 POSTE_URL,
                 json=payload,
                 headers=POSTE_HEADERS,
+                proxies=TOR_PROXIES,
                 timeout=TIMEOUT,
             )
-            # 400 = tracking no existe en Poste → NOT_FOUND, sin retry
+            # CAPTCHA → nueva IP y retry
             if resp.status_code == 400:
+                body = resp.json() if resp.content else {}
+                if body.get("id") == 2:  # "captcha valido"
+                    log.warning({"action": "captcha_detected", "attempt": attempt + 1})
+                    renew_tor_circuit()
+                    if attempt < MAX_RETRY - 1:
+                        continue
+                    raise requests.HTTPError("CAPTCHA after retries")
+                # 400 normal = tracking no existe
                 return None
             # 429 / 5xx → retry con backoff
             if resp.status_code == 429 or resp.status_code >= 500:
@@ -142,7 +169,7 @@ def debug_poste():
     codice = (body.get("codiceSpedizione") or "").strip()
     payload = {"tipoRichiedente": "WEB", "codiceSpedizione": codice, "periodoRicerca": 3}
     try:
-        resp = requests.post(POSTE_URL, json=payload, headers=POSTE_HEADERS, timeout=TIMEOUT)
+        resp = requests.post(POSTE_URL, json=payload, headers=POSTE_HEADERS, proxies=TOR_PROXIES, timeout=TIMEOUT)
         return jsonify({"status_code": resp.status_code, "body": resp.text[:2000]})
     except Exception as e:
         return jsonify({"error": str(e)})
