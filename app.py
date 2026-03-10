@@ -135,6 +135,19 @@ def health():
     return jsonify({"status": "ok", "ts": datetime.now(timezone.utc).isoformat()})
 
 
+@app.route("/debug/poste", methods=["POST"])
+def debug_poste():
+    """Temporal: muestra respuesta raw de Poste para diagnóstico."""
+    body = request.get_json(silent=True) or {}
+    codice = (body.get("codiceSpedizione") or "").strip()
+    payload = {"tipoRichiedente": "WEB", "codiceSpedizione": codice, "periodoRicerca": 3}
+    try:
+        resp = requests.post(POSTE_URL, json=payload, headers=POSTE_HEADERS, timeout=TIMEOUT)
+        return jsonify({"status_code": resp.status_code, "body": resp.text[:2000]})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 @app.route("/track/poste", methods=["POST"])
 @limiter.limit("10 per minute")
 def track_poste():
