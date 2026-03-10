@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # Tor: habilitar ControlPort con contraseña vacía
-RUN echo "ControlPort 9051\nCookieAuthentication 0\nSocksPort 9050\nExitNodes {it}\nStrictNodes 1" \
+RUN printf "ControlPort 9051\nCookieAuthentication 0\nSocksPort 9050\nFascistFirewall 1\n" \
     >> /etc/tor/torrc
 
 COPY requirements.txt .
