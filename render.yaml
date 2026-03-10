@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: shiplisa-poste-proxy
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free                  # cambiar a "starter" en producción
+    region: frankfurt           # más cerca de servidores de Poste Italiane
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8080"
+    autoDeploy: true
