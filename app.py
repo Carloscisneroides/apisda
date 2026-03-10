@@ -72,7 +72,7 @@ def fetch_poste(codice: str) -> dict:
     payload = {
         "tipoRichiedente": "WEB",
         "codiceSpedizione": codice,
-        "periodoRicerca":   1,
+        "periodoRicerca":   3,
     }
     last_err = None
     for attempt in range(MAX_RETRY):
