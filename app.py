@@ -84,6 +84,10 @@ def fetch_poste(codice: str) -> dict:
                 headers=POSTE_HEADERS,
                 timeout=TIMEOUT,
             )
+            # 400 = tracking no existe en Poste → NOT_FOUND, sin retry
+            if resp.status_code == 400:
+                return None
+            # 429 / 5xx → retry con backoff
             if resp.status_code == 429 or resp.status_code >= 500:
                 raise requests.HTTPError(f"HTTP {resp.status_code}")
             resp.raise_for_status()
@@ -149,8 +153,8 @@ def track_poste():
         log.error({"action": "upstream_error", "codice": codice, "err": str(e)})
         return jsonify({"success": False, "error": "UPSTREAM_ERROR"}), 502
 
-    # Tracking no encontrado
-    if not raw or not raw.get("idTracciatura"):
+    # Tracking no encontrado (None = 400 de Poste, o respuesta vacía)
+    if raw is None or not raw.get("idTracciatura"):
         log.info({"action": "not_found", "codice": codice})
         return jsonify({"success": False, "error": "NOT_FOUND"}), 404
 
